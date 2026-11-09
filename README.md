@@ -97,34 +97,37 @@ BTCV 的經驗顯示小 batch 用 ÷n 會讓 loss 尺度大幅跳動。
 
 測試集 130 張的 Dice 是雙峰：大多數 > 0.8，另有 15 張 < 0.5，其中 **9 張 Dice < 0.1（整顆腫瘤找錯位置）**。
 
+![BUSI test Dice](results/analysis/test_BUSI_dice_hist.png)
+
 - **prominent（特徵明顯）**：Ψ 超過訓練清單的門檻（只用 baseline 的預測，不看標註）
 - **low_dice（真正低分）**：baseline（`busi_UKAN_seed2981`）Dice < 0.5，15 張（用標註，僅供分析）。
   用另一個模型而非對照組來定義，避免「用對照組自己的低分挑影像，重訓後自然回升」的偏差。
-- **hit** = prominent 且 low_dice；**false_pick** = prominent 但不是 low_dice；**missed** = low_dice 但不是 prominent
+- **hit** = prominent 且 low_dice；**false_pick** = prominent 但不是 low_dice（原本就不差的影像）；**missed** = low_dice 但不是 prominent
+- threshold = 訓練清單中 Ψ 的最小值（即 `proxy_selection_busi.csv` 的 `list_threshold`），記在 `test_BUSI_selection.csv`
 - coverage = hit / low_dice；precision = hit / prominent
 
 **(a) Ψ 挑了幾張、挑到幾張低分**（`test_BUSI_selection.csv`）
 
-| 專家 | n_prominent | n_low_dice | n_hit | n_false_pick | n_missed | coverage | precision |
-|---|---|---|---|---|---|---|---|
-| Ψ1 | 48 | 15 | 12 | 36 | 3 | 12/15 = 0.80 | 12/48 = 0.25 |
-| Ψ6 | 21 | 15 | 8 | 13 | 7 | 8/15 = 0.53 | 8/21 = 0.38 |
-| Ψ8 | 38 | 15 | 14 | 24 | 1 | **14/15 = 0.93** | 14/38 = 0.37 |
+| 專家 | threshold | n_prominent | n_low_dice | n_hit | n_false_pick | n_missed | coverage | precision |
+|---|---|---|---|---|---|---|---|---|
+| Ψ1 | ≥ 1.05127 | 48 | 15 | 12 | 36 | 3 | 12/15 = 0.80 | 12/48 = 0.25 |
+| Ψ6 | > 0 | 21 | 15 | 8 | 13 | 7 | 8/15 = 0.53 | 8/21 = 0.38 |
+| Ψ8 | ≥ 0.331525 | 38 | 15 | 14 | 24 | 1 | **14/15 = 0.93** | 14/38 = 0.37 |
 
-**(b) 對照組 → 專家，各組的 Δ（n_up / n_down）**（`test_BUSI_summary.csv`，checkpoint = last）
+**(b) 對照組 → 專家，各組的 Δ（n_up / n_down）**（`test_BUSI_summary.csv`，last）
 
-| 專家 | all（130） | prominent | low_dice（15） | hit | false_pick | missed |
-|---|---|---|---|---|---|---|
-| Ψ1 | −0.0002（61 / 63） | −0.0088（17 / 27） | +0.0001（3 / 6） | +0.0007（3 / 5） | **−0.0119（14 / 22）** | −0.0021（0 / 1） |
-| Ψ6 | +0.0050（64 / 59） | +0.0163（11 / 6） | +0.0168（4 / 4） | +0.0242（2 / 2） | +0.0115（9 / 4） | +0.0084（2 / 2） |
-| Ψ8 | +0.0048（59 / 66） | +0.0324（18 / 15） | +0.0420（6 / 4） | +0.0460（6 / 3） | +0.0245（12 / 12） | −0.0138（0 / 1） |
+| 專家 | all（130） | prominent | low_dice（15） | false_pick |
+|---|---|---|---|---|
+| Ψ1 | −0.0002（61 / 63） | −0.0088（17 / 27） | +0.0001（3 / 6） | **−0.0119（14 / 22）** |
+| Ψ6 | +0.0050（64 / 59） | +0.0163（11 / 6） | +0.0168（4 / 4） | +0.0115（9 / 4） |
+| Ψ8 | +0.0048（59 / 66） | +0.0324（18 / 15） | +0.0420（6 / 4） | +0.0245（12 / 12） |
 
-所有 Wilcoxon p > 0.06。重訓雜訊：兩次 baseline 在測試集的逐張 Δ 標準差 0.099（`test_BUSI_noise.csv`）。
+所有 Wilcoxon p > 0.1。重訓雜訊：兩次 baseline 在測試集的逐張 Δ 標準差 0.099（`test_BUSI_noise.csv`）。
 
 - Ψ 能找到低分影像（Ψ8 覆蓋 14/15、Ψ1 12/15），但被挑中的影像裡 6–7 成原本就不差（false_pick）。
 - Ψ1 的下降集中在 false_pick（36 張，−0.012）：形狀不規則但原本分割得好的腫瘤，加權後反而變差。
 - 9 張 Dice < 0.1 的影像，對照組與三個專家**全部仍 < 0.03**（`test_BUSI_percase.csv`）：這類錯誤是位置找錯，不是邊界形狀，加權形狀類 Ψ 無法修正。
-- Ψ8 在 hit 上 +0.046，方向正確，但仍在重訓雜訊範圍內。
+- Ψ8 在低分組 +0.042，方向正確，但仍在重訓雜訊範圍內。
 
 <details>
 <summary>補充：best（原作者做法）的結果</summary>
@@ -135,7 +138,7 @@ BTCV 的經驗顯示小 batch 用 ÷n 會讓 loss 尺度大幅跳動。
 | Ψ6 | −0.0080 | +0.0230 | −0.0033（0.191） | +0.0276（9 / 10） | −0.0393（3 / 8） |
 | Ψ8 | −0.0020 | +0.0160 | −0.0138（0.132） | −0.0259（15 / 19） | −0.0497（2 / 9） |
 
-best 各自挑到不同的 epoch，與 last 的正負號經常相反（第 3 節），僅供參照。
+best 各自挑到不同的 epoch，與 last 的正負號經常相反（第 3 節），僅供參照（`python analyze_busi.py --checkpoint best` 由 `results/percase` 重算）。
 </details>
 
 ### 結論
@@ -210,7 +213,7 @@ psi-weighted-nnunet 的 `psi/run_all_psi.py`（以 `--psi_lib` 指定路徑）�
 | `weight_lists/` | 三個加權清單（影像名稱、Ψ 值、baseline Dice） |
 | `results/psi_selection/proxy_selection_busi.csv` | proxy 篩選結果 |
 | `results/percase/` | 每個模型逐張的 Dice（`<模型>_<best或last>.csv`）；`busi_UKAN_seed2981_best.csv` 含十個 Ψ |
-| `results/analysis/` | `weighted_cases_BUSI*`（訓練集）；`test_BUSI_selection`（挑選張數、coverage、precision）、`test_BUSI_summary`（各組 control → expert）、`test_BUSI_percase`（逐張）、`test_BUSI_noise`（重訓雜訊） |
+| `results/analysis/` | 皆為 last。`weighted_cases_BUSI*`（訓練集）；`test_BUSI_selection`（門檻、挑選張數、coverage、precision）、`test_BUSI_summary`（各組 control → expert）、`test_BUSI_percase`（逐張）、`test_BUSI_noise`（重訓雜訊，best）、`test_BUSI_dice_hist.png`（測試集 Dice 分布） |
 | `results/training_logs/` | 每個模型每個 epoch 的 loss 與 IoU |
 
 資料、影像與模型權重不包含在倉庫中。U-KAN 的程式不包含在本倉庫，見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

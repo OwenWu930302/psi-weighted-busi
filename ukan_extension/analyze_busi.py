@@ -11,14 +11,17 @@ Test set (130 images):
   prominent : Psi passes the threshold of the training list (label-free, from the --psi_from prediction)
   low_dice  : --psi_from baseline Dice < 0.5 (uses labels; analysis only, never used for selection)
               defined with a model other than the control to avoid regression to the mean
-  hit = prominent & low_dice, false_pick = prominent & not low_dice, missed = low_dice & not prominent
+  hit = prominent & low_dice, false_pick = prominent & not low_dice (images that were already fine)
   coverage  = hit / low_dice      precision = hit / prominent
+  threshold : minimum Psi in the training weight list (= list_threshold in proxy_selection_busi.csv)
 
 Outputs (outputs/analysis_busi/):
-  test_BUSI_selection.csv  per expert: how many images Psi selects and how many of them are low-Dice
-  test_BUSI_summary.csv    per checkpoint x expert x group: control -> expert
+  test_BUSI_selection.csv  per expert: threshold, how many images Psi selects, how many of them are low-Dice
+  test_BUSI_summary.csv    per expert x group (all / prominent / low_dice / false_pick): control -> expert
   test_BUSI_percase.csv    per image
-  test_BUSI_noise.csv      two baselines with identical settings
+  test_BUSI_noise.csv      two baselines with identical settings (best; the first baseline has no last)
+  test_BUSI_dice_hist.png  test-set Dice distribution of the baseline, with the low_dice cut-off
+Only one checkpoint is analysed (--checkpoint, default last = fixed epoch).
 
 Usage (in Seg_UKAN): python analyze_busi.py --lists <list folder>
 """
@@ -38,6 +41,7 @@ ap.add_argument('--noise', default='busi_UKAN_seed2981')
 ap.add_argument('--lists', default='/mnt/data2t/BUSI/psi_lists')
 ap.add_argument('--expert_fmt', default='busi_UKAN_{short}w3')
 ap.add_argument('--low_t', default=0.5, type=float, help='low_dice = baseline Dice below this value')
+ap.add_argument('--checkpoint', default='last', choices=['last', 'best'])
 args = ap.parse_args()
 O = args.output_dir
 OUT = f'{O}/analysis_busi'
@@ -85,6 +89,25 @@ for _, r in sel.iterrows():
 # ---------- test-set selection (depends only on the --psi_from baseline, not on checkpoint) ----------
 VAL = PSI[PSI.split == 'val']
 LOW = VAL.dice < args.low_t
+# Dice histogram of the baseline (why 0.5: the distribution is bimodal)
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots(figsize=(7, 3.6))
+bins = np.arange(0, 1.0001, 0.05)
+cnt, _, bars = ax.hist(VAL.dice, bins=bins, color='#7a9cc6', edgecolor='white')
+for b, c in zip(bars, cnt):
+    if b.get_x() < args.low_t:
+        b.set_color('#d9534f')
+    if c:
+        ax.text(b.get_x() + 0.025, c + 0.5, int(c), ha='center', fontsize=8)
+ax.axvline(args.low_t, color='k', ls='--', lw=1)
+ax.text(args.low_t - 0.01, cnt.max() * 0.9, f'low_dice: Dice < {args.low_t}\n{int(LOW.sum())} images '
+        f'({int((VAL.dice < 0.1).sum())} below 0.1)', ha='right', fontsize=9)
+ax.set_xlabel('Dice'); ax.set_ylabel('images'); ax.set_xlim(0, 1)
+ax.set_title(f'BUSI test set ({len(VAL)} images): Dice of {args.psi_from}', fontsize=10)
+fig.tight_layout(); fig.savefig(f'{OUT}/test_BUSI_dice_hist.png', dpi=150); plt.close(fig)
+
 SELROWS, PROM = [], {}
 for e in EXPERTS:
     p = VAL[e['psi']].apply(lambda v: bool(not pd.isna(v) and e['sel'](v)))
@@ -95,20 +118,21 @@ for e in EXPERTS:
                         n_missed=n_low - hit, coverage=hit / max(n_low, 1), precision=hit / max(n_p, 1)))
 
 TR, TRS, TRC, TE, SUM, NOISE = [], [], [], [], [], []
-for which in ('last', 'best'):
+# noise reference: the first baseline only has best
+ctl, nz = load(args.control, 'best'), load(args.noise, 'best')
+if ctl is not None and nz is not None and args.noise != args.control:
+    for sp, nm in (('train', 'train'), ('val', 'test')):
+        cs = ctl[ctl.split == sp].index.intersection(nz.index)
+        d = nz.loc[cs, 'dice'] - ctl.loc[cs, 'dice']
+        NOISE.append(dict(checkpoint='best', split=nm, model_a=args.control, model_b=args.noise, n=len(cs),
+                          dice_a=ctl.loc[cs, 'dice'].mean(), dice_b=nz.loc[cs, 'dice'].mean(), delta=d.mean(),
+                          sd_delta=d.std(), n_up=int((d > 0).sum()), n_down=int((d < 0).sum()),
+                          wilcoxon_p=wil(d)))
+for which in (args.checkpoint,):
     ctl = load(args.control, which)
     if ctl is None:
         print(f'skip {which}: missing {args.control}/percase_{which}.csv')
         continue
-    nz = load(args.noise, which)
-    if nz is not None and args.noise != args.control:
-        for sp, nm in (('train', 'train'), ('val', 'test')):
-            cs = ctl[ctl.split == sp].index.intersection(nz.index)
-            d = nz.loc[cs, 'dice'] - ctl.loc[cs, 'dice']
-            NOISE.append(dict(checkpoint=which, split=nm, model_a=args.control, model_b=args.noise, n=len(cs),
-                              dice_a=ctl.loc[cs, 'dice'].mean(), dice_b=nz.loc[cs, 'dice'].mean(), delta=d.mean(),
-                              sd_delta=d.std(), n_up=int((d > 0).sum()), n_down=int((d < 0).sum()),
-                              wilcoxon_p=wil(d)))
     for e in EXPERTS:
         ex = load(e['model'], which)
         if ex is None:
@@ -138,8 +162,7 @@ for which in ('last', 'best'):
                            prominent='yes' if p[c] else 'no', low_dice='yes' if low[c] else 'no',
                            baseline_dice=VAL.loc[c, 'dice'], before_control=r.control, after_expert=r.expert,
                            delta=r.delta))
-        for name, m in [('all', p | ~p), ('prominent', p), ('low_dice', low), ('hit', p & low),
-                        ('false_pick', p & ~low), ('missed', ~p & low)]:
+        for name, m in [('all', p | ~p), ('prominent', p), ('low_dice', low), ('false_pick', p & ~low)]:
             SUM.append(dict(checkpoint=which, expert=e['model'], group=name, **change(g[m])))
 
 for name, rows in [('weighted_cases_BUSI', TR), ('weighted_cases_BUSI_summary', TRS),
@@ -152,7 +175,7 @@ pd.set_option('display.width', 200)
 pd.set_option('display.max_columns', 30)
 for title, rows in [('noise (two baselines)', NOISE), ('training set: weighted vs unweighted', TRC),
                     ('test set: selection', SELROWS),
-                    ('test set (last): control -> expert', [r for r in SUM if r['checkpoint'] == 'last'])]:
+                    (f'test set ({args.checkpoint}): control -> expert', SUM)]:
     if rows:
         print(f'\n[{title}]')
         print(pd.DataFrame(rows).to_string(index=False, float_format='%.4f'))
