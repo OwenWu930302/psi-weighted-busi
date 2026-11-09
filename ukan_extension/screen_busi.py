@@ -28,8 +28,8 @@ thr = d.dice.quantile(0.30)
 low = d.dice <= thr
 k = int(round(len(d) * 0.30))
 print(f'訓練集 {len(d)} 張；低分組 = Dice ≤ {thr:.4f}（{int(low.sum())} 張）；前 30% 名額 = {k}\n')
-NOTE = {'psi2_shadow': '未定義計算方式', 'psi3_inclusion': '單一結構', 'psi4_adjacency': '單一結構',
-        'psi5_exclusion': '單一結構', 'psi9_nesting': '單一結構', 'psi10_centroid': '單一結構'}
+NOTE = {'psi2_shadow': 'undefined', 'psi3_inclusion': 'single structure', 'psi4_adjacency': 'single structure',
+        'psi5_exclusion': 'single structure', 'psi9_nesting': 'single structure', 'psi10_centroid': 'single structure'}
 rows = []
 print(f'{"Ψ":<16}{"AUC":>7}{"p":>10}  {"狀態":<6}{"方向":<10}{"規則":<10}{"門檻":<14}{"清單":>5}')
 for c in [c for c in d.columns if c.startswith('psi')]:
@@ -42,7 +42,7 @@ for c in [c for c in d.columns if c.startswith('psi')]:
     g1, g0 = x[low].dropna(), x[~low].dropna()
     u, p = mannwhitneyu(g1, g0, alternative='two-sided')
     auc = u / (len(g1) * len(g0))
-    status = '顯著' if p < 0.05 else ('邊緣' if p < 0.10 else '不顯著')
+    status = 'significant' if p < 0.05 else ('marginal' if p < 0.10 else 'not significant')
     v = x.dropna()
     integer = np.allclose(v, np.round(v))
     if auc < 0.5:
@@ -56,16 +56,16 @@ for c in [c for c in d.columns if c.startswith('psi')]:
         else:
             rule, sel, desc = 'top30', d[x >= t], f'>= {t:.6g}'
     r = dict(proxy=c, n=len(d), low_n=int(low.sum()), dice_threshold=thr, auc=auc, p=p,
-             direction='高=危險' if auc >= 0.5 else '低=危險（反向）', low_mean=g1.mean(), rest_mean=g0.mean(),
+             direction='high = hard' if auc >= 0.5 else 'low = hard', low_mean=g1.mean(), rest_mean=g0.mean(),
              status=status, rule=rule, list_threshold=desc, list_n=len(sel))
-    if status == '顯著' and len(sel) > 0.5 * len(d):            # 離散值大量並列，清單超過一半就不是「特徵明顯」
-        r['status'] = status = '顯著但清單過大（並列）'
-    if status == '顯著':
+    if status == 'significant' and len(sel) > 0.5 * len(d):            # 離散值大量並列，清單超過一半就不是「特徵明顯」
+        r['status'] = status = 'significant, list too large (ties)'
+    if status == 'significant':
         f = f'{OUT}/wcases_busi_{c}.csv'
         sel[['case', c, 'dice']].sort_values(c, ascending=(rule == 'bottom30')).to_csv(f, index=False)
         r['list_file'] = f
     rows.append(r)
     print(f'{c:<16}{auc:>7.3f}{p:>10.2e}  {status:<6}{r["direction"]:<10}{rule:<10}{desc:<14}{len(sel):>5}'
-          + ('　→ 專家' if status == '顯著' else ''))
+          + ('  -> expert' if status == 'significant' else ''))
 pd.DataFrame(rows).to_csv(f'{OUT}/proxy_selection_busi.csv', index=False, encoding='utf-8-sig')
 print(f'\n→ {OUT}/proxy_selection_busi.csv；顯著的 Ψ 已寫出 wcases_busi_<Ψ>.csv')

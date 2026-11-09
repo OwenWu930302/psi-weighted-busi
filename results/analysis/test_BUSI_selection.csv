@@ -1,0 +1,4 @@
+﻿expert,psi,threshold,n_test,n_prominent,n_low_dice,n_hit,n_false_pick,n_missed,coverage,precision
+busi_UKAN_psi1w3,psi1_convex,>= 1.05127,130,48,15,12,36,3,0.8000,0.2500
+busi_UKAN_psi6w3,psi6_cc,> 0,130,21,15,8,13,7,0.5333,0.3810
+busi_UKAN_psi8w3,psi8_rotation,>= 0.331525,130,38,15,14,24,1,0.9333,0.3684

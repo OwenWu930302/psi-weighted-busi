@@ -1,11 +1,11 @@
 ﻿proxy,n,low_n,dice_threshold,auc,p,direction,low_mean,rest_mean,status,rule,list_threshold,list_n,list_file
-psi1_convex,517,155,0.9118367244514508,0.7796560327927285,6.621182549421263e-24,高=危險,1.070653564929276,1.0366624875378487,顯著,top30,>= 1.05127,155.0,weight_lists/wcases_busi_psi1_convex.csv
-psi2_shadow,517,155,,,,,,,未定義計算方式,,,,
-psi3_inclusion,517,155,,,,,,,單一結構,,,,
-psi4_adjacency,517,155,,,,,,,單一結構,,,,
-psi5_exclusion,517,155,,,,,,,單一結構,,,,
-psi6_cc,517,155,0.9118367244514508,0.5374532168953841,0.0014331614171326,高=危險,0.1290322580645161,0.0441988950276243,顯著,gt0,> 0,33.0,weight_lists/wcases_busi_psi6_cc.csv
-psi7_genus,517,155,0.9118367244514508,0.4967741935483871,0.1275068698624922,低=危險（反向）,0.9935483870967742,1.0,不顯著,bottom30,<= 1,517.0,
-psi8_rotation,517,155,0.9118367244514508,0.70544466227054,1.277377106925361e-13,高=危險,0.4570726719474459,0.2501788335708231,顯著,top30,>= 0.331525,155.0,weight_lists/wcases_busi_psi8_rotation.csv
-psi9_nesting,517,155,,,,,,,單一結構,,,,
-psi10_centroid,517,155,,,,,,,單一結構,,,,
+psi1_convex,517,155,0.9118367244514508,0.7796560327927285,6.621182549421263e-24,high = hard,1.070653564929276,1.0366624875378487,significant,top30,>= 1.05127,155,weight_lists/wcases_busi_psi1_convex.csv
+psi2_shadow,517,155,,,,,,,undefined,,,,
+psi3_inclusion,517,155,,,,,,,single structure,,,,
+psi4_adjacency,517,155,,,,,,,single structure,,,,
+psi5_exclusion,517,155,,,,,,,single structure,,,,
+psi6_cc,517,155,0.9118367244514508,0.5374532168953841,0.0014331614171326,high = hard,0.1290322580645161,0.0441988950276243,significant,gt0,> 0,33,weight_lists/wcases_busi_psi6_cc.csv
+psi7_genus,517,155,0.9118367244514508,0.4967741935483871,0.1275068698624922,low = hard,0.9935483870967742,1.0,not significant,bottom30,<= 1,517,
+psi8_rotation,517,155,0.9118367244514508,0.70544466227054,1.277377106925361e-13,high = hard,0.4570726719474459,0.2501788335708231,significant,top30,>= 0.331525,155,weight_lists/wcases_busi_psi8_rotation.csv
+psi9_nesting,517,155,,,,,,,single structure,,,,
+psi10_centroid,517,155,,,,,,,single structure,,,,

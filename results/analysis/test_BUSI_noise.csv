@@ -1,3 +1,3 @@
-﻿檢查點,資料,說明,全部_張數,全部_對照組,全部_專家,全部_Δ,全部_升,全部_降,全部_p,逐張Δ標準差
-best,訓練集,busi_UKAN_seed2981 − busi_UKAN_base2（同設定重訓兩次）,517,0.9461,0.9198,-0.0263,81,436,0.0000,0.0621
-best,測試集,busi_UKAN_seed2981 − busi_UKAN_base2（同設定重訓兩次）,130,0.8083,0.7990,-0.0093,64,63,0.7020,0.0987
+﻿checkpoint,split,model_a,model_b,n,dice_a,dice_b,delta,sd_delta,n_up,n_down,wilcoxon_p
+best,train,busi_UKAN_base2,busi_UKAN_seed2981,517,0.9461,0.9198,-0.0263,0.0621,81,436,0.0000
+best,test,busi_UKAN_base2,busi_UKAN_seed2981,130,0.8083,0.7990,-0.0093,0.0987,64,63,0.7020
