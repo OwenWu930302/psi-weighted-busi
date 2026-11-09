@@ -1,0 +1,147 @@
+diff --git a/Seg_UKAN/archs.py b/Seg_UKAN/archs.py
+index a050142..78c3c95 100644
+--- a/Seg_UKAN/archs.py
++++ b/Seg_UKAN/archs.py
+@@ -1,3 +1,4 @@
++__all__ = ['UKAN']   # 修正：官方 train.py 需要 archs.__all__，原檔未定義
+ import torch
+ from torch import nn
+ import torch
+diff --git a/Seg_UKAN/losses.py b/Seg_UKAN/losses.py
+index 1a8f188..0dd707c 100644
+--- a/Seg_UKAN/losses.py
++++ b/Seg_UKAN/losses.py
+@@ -26,6 +26,16 @@ class BCEDiceLoss(nn.Module):
+         dice = 1 - dice.sum() / num
+         return 0.5 * bce + dice
+ 
++    def per_sample(self, input, target):
++        """[Ψ加權] 每張影像各自的 loss：0.5·BCEᵢ + (1 − Diceᵢ)；對張數平均即等於 forward()"""
++        num = target.size(0)
++        bce = F.binary_cross_entropy_with_logits(input, target, reduction='none').view(num, -1).mean(1)
++        smooth = 1e-5
++        p = torch.sigmoid(input).view(num, -1)
++        t = target.view(num, -1)
++        dice = (2. * (p * t).sum(1) + smooth) / (p.sum(1) + t.sum(1) + smooth)
++        return 0.5 * bce + (1 - dice)
++
+ 
+ class LovaszHingeLoss(nn.Module):
+     def __init__(self):
+diff --git a/Seg_UKAN/requirements.txt b/Seg_UKAN/requirements.txt
+index 3c14a7c..56847d4 100644
+--- a/Seg_UKAN/requirements.txt
++++ b/Seg_UKAN/requirements.txt
+@@ -1,20 +1,18 @@
+-addict==2.4.0
+-dataclasses
++# 改寫自 requirements_original.txt，使其能在作者指定的 Python 3.10 + PyTorch 1.13 安裝與執行
++# PyTorch 另外安裝（同原檔）：
++#   pip install torch==1.13.0+cu116 torchvision==0.14.0+cu116 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu116
++numpy<2                          # PyTorch 1.13 以 NumPy 1.x 編譯
++opencv-python==4.10.0.84         # 更新版要求 NumPy 2
++opencv-python-headless==4.10.0.84
++albumentations==1.3.1            # 程式使用 geometric.transforms.Flip，新版已移除
++scikit-image<0.25
++timm==0.4.12                     # 原為 0.3.2：會 import torch._six（PyTorch 1.9 起已移除）
++medpy                            # metrics.py 需要，原檔漏列
+ pandas
+ pyyaml
+-albumentations
+ tqdm
+ tensorboardX
+-# mmcv-full==1.2.7
+-numpy
+-opencv-python
+-perceptual==0.1
+-pillow==8.4.0
+-scikit-image==0.17.2
+-scipy==1.5.4
+-tifffile==2020.9.3
+-timm==0.3.2
+-typing-extensions==4.0.0
+-yapf==0.31.0
+-
+-pip install torch==1.13.0+cu116 torchvision==0.14.0+cu116 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu116
+\ No newline at end of file
++scikit-learn
++scipy
++matplotlib
++pillow
+diff --git a/Seg_UKAN/train.py b/Seg_UKAN/train.py
+index fd5ee00..6d9744f 100644
+--- a/Seg_UKAN/train.py
++++ b/Seg_UKAN/train.py
+@@ -127,6 +127,9 @@ def parse_args():
+     parser.add_argument('--num_workers', default=4, type=int)
+ 
+     parser.add_argument('--no_kan', action='store_true')
++    # [Ψ加權] 不給 --wcases 時與原版完全相同
++    parser.add_argument('--wcases', default=None, help='Ψ 加權清單 csv（第一欄 case）')
++    parser.add_argument('--wfactor', default=3.0, type=float, help='清單內影像的權重，其餘為 1')
+ 
+ 
+ 
+@@ -135,6 +138,18 @@ def parse_args():
+     return config
+ 
+ 
++_PSI_CASES = None
++
++
++def psi_weights(config, ids):
++    """[Ψ加權] 清單內的影像權重 = wfactor，其餘 = 1"""
++    global _PSI_CASES
++    if _PSI_CASES is None:
++        _PSI_CASES = set(pd.read_csv(config['wcases'], encoding='utf-8-sig').iloc[:, 0].astype(str))
++        print(f"[Ψ加權] 清單 {config['wcases']}：{len(_PSI_CASES)} 張，權重 ×{config['wfactor']}")
++    return torch.tensor([config['wfactor'] if str(i) in _PSI_CASES else 1.0 for i in ids])
++
++
+ def train(config, train_loader, model, criterion, optimizer):
+     avg_meters = {'loss': AverageMeter(),
+                   'iou': AverageMeter()}
+@@ -142,7 +157,10 @@ def train(config, train_loader, model, criterion, optimizer):
+     model.train()
+ 
+     pbar = tqdm(total=len(train_loader))
+-    for input, target, _ in train_loader:
++    psi_hit = psi_tot = 0
++    if config.get('wcases') and config['deep_supervision']:
++        raise ValueError('[Ψ加權] 未支援 deep_supervision')
++    for input, target, meta in train_loader:
+         input = input.cuda()
+         target = target.cuda()
+ 
+@@ -159,7 +177,13 @@ def train(config, train_loader, model, criterion, optimizer):
+             
+         else:
+             output = model(input)
+-            loss = criterion(output, target)
++            if config.get('wcases'):                          # [Ψ加權] 加權平均 Σ wᵢ·Lᵢ / Σ wᵢ
++                w = psi_weights(config, meta['img_id']).to(output.device)
++                loss = (w * criterion.per_sample(output, target)).sum() / w.sum()
++                psi_hit += int((w != 1).sum())
++                psi_tot += len(w)
++            else:
++                loss = criterion(output, target)
+             iou, dice, _ = iou_score(output, target)
+             iou_, dice_, hd_, hd95_, recall_, specificity_, precision_ = indicators(output, target)
+ 
+@@ -178,6 +202,8 @@ def train(config, train_loader, model, criterion, optimizer):
+         pbar.set_postfix(postfix)
+         pbar.update(1)
+     pbar.close()
++    if psi_tot:
++        print(f'[Ψ加權] 本輪加權樣本 {psi_hit}/{psi_tot} ({psi_hit / psi_tot:.1%})')
+ 
+     return OrderedDict([('loss', avg_meters['loss'].avg),
+                         ('iou', avg_meters['iou'].avg)])
+@@ -426,6 +452,7 @@ def main():
+         my_writer.add_scalar('val/best_iou_value', best_iou, global_step=epoch)
+         my_writer.add_scalar('val/best_dice_value', best_dice, global_step=epoch)
+ 
++        torch.save(model.state_dict(), f'{output_dir}/{exp_name}/model_last.pth')   # [Ψ加權] 另存最後一個 epoch
+         trigger += 1
+ 
+         if val_log['iou'] > best_iou:

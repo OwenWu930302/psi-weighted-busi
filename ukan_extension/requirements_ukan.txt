@@ -1,0 +1,18 @@
+# 改寫自 requirements_original.txt，使其能在作者指定的 Python 3.10 + PyTorch 1.13 安裝與執行
+# PyTorch 另外安裝（同原檔）：
+#   pip install torch==1.13.0+cu116 torchvision==0.14.0+cu116 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu116
+numpy<2                          # PyTorch 1.13 以 NumPy 1.x 編譯
+opencv-python==4.10.0.84         # 更新版要求 NumPy 2
+opencv-python-headless==4.10.0.84
+albumentations==1.3.1            # 程式使用 geometric.transforms.Flip，新版已移除
+scikit-image<0.25
+timm==0.4.12                     # 原為 0.3.2：會 import torch._six（PyTorch 1.9 起已移除）
+medpy                            # metrics.py 需要，原檔漏列
+pandas
+pyyaml
+tqdm
+tensorboardX
+scikit-learn
+scipy
+matplotlib
+pillow

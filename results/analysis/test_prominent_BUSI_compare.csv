@@ -1,0 +1,7 @@
+﻿checkpoint,expert,n_prominent,delta_prominent,n_other,delta_other,prominent_minus_other,mannwhitney_p
+best,busi_UKAN_psi1w3,48,-0.0415,82,-0.0011,-0.0404,0.1005
+best,busi_UKAN_psi6w3,21,0.0276,109,-0.0093,0.0368,0.3724
+best,busi_UKAN_psi8w3,38,-0.0259,92,-0.0088,-0.0171,0.8398
+last,busi_UKAN_psi1w3,48,-0.0088,82,0.0048,-0.0136,0.0276
+last,busi_UKAN_psi6w3,21,0.0163,109,0.0028,0.0135,0.2173
+last,busi_UKAN_psi8w3,38,0.0324,92,-0.0066,0.0390,0.2202

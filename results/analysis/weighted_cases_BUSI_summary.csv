@@ -1,0 +1,7 @@
+﻿checkpoint,expert,psi,n_weighted,before_control,after_expert,delta,提升,下降,wilcoxon_p
+best,busi_UKAN_psi1w3,psi1_convex,155,0.9366,0.9054,-0.0312,19,136,0.0000
+best,busi_UKAN_psi6w3,psi6_cc,33,0.9298,0.9218,-0.0080,8,25,0.0066
+best,busi_UKAN_psi8w3,psi8_rotation,155,0.9385,0.9365,-0.0020,73,82,0.3576
+last,busi_UKAN_psi1w3,psi1_convex,155,0.9625,0.9681,0.0057,132,23,0.0000
+last,busi_UKAN_psi6w3,psi6_cc,33,0.9494,0.9723,0.0229,31,2,0.0000
+last,busi_UKAN_psi8w3,psi8_rotation,155,0.9655,0.9670,0.0015,91,64,0.0064
