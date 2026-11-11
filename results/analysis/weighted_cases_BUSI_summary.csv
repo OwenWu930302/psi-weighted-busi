@@ -1,4 +1,4 @@
 ﻿checkpoint,expert,n,before_control,after_expert,delta,n_up,n_down,wilcoxon_p
-last,busi_UKAN_psi1w3,155,0.9625,0.9681,0.0057,132,23,0.0000
-last,busi_UKAN_psi6w3,33,0.9494,0.9723,0.0229,31,2,0.0000
-last,busi_UKAN_psi8w3,155,0.9655,0.9670,0.0015,91,64,0.0064
+last,busi_UKAN_psi1w3n,155,0.9625,0.9702,0.0077,140,15,0.0000
+last,busi_UKAN_psi6w3n,33,0.9494,0.9743,0.0249,31,2,0.0000
+last,busi_UKAN_psi8w3n,155,0.9655,0.9703,0.0048,122,33,0.0000

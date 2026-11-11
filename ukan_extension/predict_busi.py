@@ -1,6 +1,7 @@
 """
 用訓練好的 U-KAN 預測 BUSI，存下每張影像的預測遮罩與逐張 Dice，並可計算十個 Ψ
   切分：與 train.py 完全相同（影像名稱排序 → train_test_split(test_size=0.2, random_state=dataseed)）
+        模型若以 --move_to_train 訓練，清單中的測試影像同樣移到 train（由 config.yml 讀取）
         train = 80%（517 張，模型訓練過）、val = 20%（130 張，論文報告分數用的那份，本研究當作測試集）
   前處理：與 train.py 的 val_transform 相同（Resize 256 → Normalize → /255），門檻 sigmoid ≥ 0.5
   逐張 Dice / IoU：在 256×256 上計算（與訓練時的評估相同解析度）
@@ -61,6 +62,10 @@ base = os.path.join(config['data_dir'], config['dataset'])
 ids = sorted(glob(os.path.join(base, 'images', '*.png')))
 ids = [os.path.splitext(os.path.basename(p))[0] for p in ids]
 tr, va = train_test_split(ids, test_size=0.2, random_state=config['dataseed'])
+if config.get('move_to_train'):                                   # 與 train.py 相同
+    mv = set(pd.read_csv(config['move_to_train'], encoding='utf-8-sig').iloc[:, 0].astype(str))
+    tr, va = tr + [i for i in va if i in mv], [i for i in va if i not in mv]
+    print(f'移到訓練集 {len(mv)} 張 → train {len(tr)}、val {len(va)}')
 SPLIT = {'train': tr, 'val': va}
 tf = Compose([Resize(config['input_h'], config['input_w']), transforms.Normalize()])
 

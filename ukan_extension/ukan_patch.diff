@@ -69,20 +69,22 @@ index 3c14a7c..56847d4 100644
 +matplotlib
 +pillow
 diff --git a/Seg_UKAN/train.py b/Seg_UKAN/train.py
-index fd5ee00..6d9744f 100644
+index fd5ee00..ed50c80 100644
 --- a/Seg_UKAN/train.py
 +++ b/Seg_UKAN/train.py
-@@ -127,6 +127,9 @@ def parse_args():
+@@ -127,6 +127,11 @@ def parse_args():
      parser.add_argument('--num_workers', default=4, type=int)
  
      parser.add_argument('--no_kan', action='store_true')
 +    # [Ψ加權] 不給 --wcases 時與原版完全相同
 +    parser.add_argument('--wcases', default=None, help='Ψ 加權清單 csv（第一欄 case）')
 +    parser.add_argument('--wfactor', default=3.0, type=float, help='清單內影像的權重，其餘為 1')
++    parser.add_argument('--wnorm', default='n', choices=['n', 'sum'], help='loss 分母：batch 張數 n（預設）或 Σw（舊版）')
++    parser.add_argument('--move_to_train', default=None, help='移到訓練集的測試影像清單 csv（第一欄 case）')
  
  
  
-@@ -135,6 +138,18 @@ def parse_args():
+@@ -135,6 +140,19 @@ def parse_args():
      return config
  
  
@@ -94,14 +96,15 @@ index fd5ee00..6d9744f 100644
 +    global _PSI_CASES
 +    if _PSI_CASES is None:
 +        _PSI_CASES = set(pd.read_csv(config['wcases'], encoding='utf-8-sig').iloc[:, 0].astype(str))
-+        print(f"[Ψ加權] 清單 {config['wcases']}：{len(_PSI_CASES)} 張，權重 ×{config['wfactor']}")
++        print(f"[Ψ加權] 清單 {config['wcases']}：{len(_PSI_CASES)} 張，權重 ×{config['wfactor']}，"
++              f"loss ÷ {'Σw' if config.get('wnorm', 'n') == 'sum' else 'n'}")
 +    return torch.tensor([config['wfactor'] if str(i) in _PSI_CASES else 1.0 for i in ids])
 +
 +
  def train(config, train_loader, model, criterion, optimizer):
      avg_meters = {'loss': AverageMeter(),
                    'iou': AverageMeter()}
-@@ -142,7 +157,10 @@ def train(config, train_loader, model, criterion, optimizer):
+@@ -142,7 +160,10 @@ def train(config, train_loader, model, criterion, optimizer):
      model.train()
  
      pbar = tqdm(total=len(train_loader))
@@ -113,14 +116,15 @@ index fd5ee00..6d9744f 100644
          input = input.cuda()
          target = target.cuda()
  
-@@ -159,7 +177,13 @@ def train(config, train_loader, model, criterion, optimizer):
+@@ -159,7 +180,14 @@ def train(config, train_loader, model, criterion, optimizer):
              
          else:
              output = model(input)
 -            loss = criterion(output, target)
-+            if config.get('wcases'):                          # [Ψ加權] 加權平均 Σ wᵢ·Lᵢ / Σ wᵢ
++            if config.get('wcases'):                          # [Ψ加權] Σ wᵢ·Lᵢ / n（預設）；--wnorm sum 時 / Σ wᵢ（舊版）
 +                w = psi_weights(config, meta['img_id']).to(output.device)
-+                loss = (w * criterion.per_sample(output, target)).sum() / w.sum()
++                wsum = (w * criterion.per_sample(output, target)).sum()
++                loss = wsum / (w.sum() if config.get('wnorm', 'n') == 'sum' else len(w))
 +                psi_hit += int((w != 1).sum())
 +                psi_tot += len(w)
 +            else:
@@ -128,7 +132,7 @@ index fd5ee00..6d9744f 100644
              iou, dice, _ = iou_score(output, target)
              iou_, dice_, hd_, hd95_, recall_, specificity_, precision_ = indicators(output, target)
  
-@@ -178,6 +202,8 @@ def train(config, train_loader, model, criterion, optimizer):
+@@ -178,6 +206,8 @@ def train(config, train_loader, model, criterion, optimizer):
          pbar.set_postfix(postfix)
          pbar.update(1)
      pbar.close()
@@ -137,7 +141,19 @@ index fd5ee00..6d9744f 100644
  
      return OrderedDict([('loss', avg_meters['loss'].avg),
                          ('iou', avg_meters['iou'].avg)])
-@@ -426,6 +452,7 @@ def main():
+@@ -334,6 +364,11 @@ def main():
+     img_ids = [os.path.splitext(os.path.basename(p))[0] for p in img_ids]
+ 
+     train_img_ids, val_img_ids = train_test_split(img_ids, test_size=0.2, random_state=config['dataseed'])
++    if config.get('move_to_train'):                       # [Ψ加權] 把清單中的測試影像移到訓練集
++        mv = set(pd.read_csv(config['move_to_train'], encoding='utf-8-sig').iloc[:, 0].astype(str))
++        train_img_ids = train_img_ids + [i for i in val_img_ids if i in mv]
++        val_img_ids = [i for i in val_img_ids if i not in mv]
++        print(f"[Ψ加權] 移到訓練集 {len(mv)} 張 → 訓練 {len(train_img_ids)}、測試 {len(val_img_ids)}")
+ 
+     train_transform = Compose([
+         RandomRotate90(),
+@@ -426,6 +461,7 @@ def main():
          my_writer.add_scalar('val/best_iou_value', best_iou, global_step=epoch)
          my_writer.add_scalar('val/best_dice_value', best_dice, global_step=epoch)
  

@@ -1,0 +1,10 @@
+﻿model,case,before_control,after_moved,delta
+busi_UKAN_moved,benign (116),0.0000,0.9592,0.9592
+busi_UKAN_moved,malignant (106),0.0000,0.9403,0.9403
+busi_UKAN_moved,benign (236),0.0000,0.9873,0.9873
+busi_UKAN_moved,benign (367),0.0000,0.9825,0.9825
+busi_UKAN_moved,benign (257),0.0000,0.9624,0.9624
+busi_UKAN_moved,benign (247),0.0000,0.9680,0.9680
+busi_UKAN_moved,malignant (105),0.0000,0.9212,0.9212
+busi_UKAN_moved,benign (223),0.0100,0.9711,0.9611
+busi_UKAN_moved,malignant (198),0.0138,0.9673,0.9535

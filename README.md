@@ -26,14 +26,14 @@ BTCV、ACDC 的結果請見原倉庫，REFUGE 請見 [psi-weighted-refuge](https
                            ▼
 ⑥ 訓練集：被加權影像在「專家 vs 對照組」下的 Dice 變化
 ⑦ 測試集（20%，130 張）：套用訓練清單的門檻挑出「特徵明顯」的影像，比較專家 vs 對照組
+⑧ 搬移實驗：測試集中 Dice < 0.2 的 9 張移到訓練集（權重 1），看它們被看過之後能否學起來
 ```
 
-$$L = \frac{\sum_i w_i \cdot L_i}{\sum_i w_i}, \qquad L_i = 0.5\cdot\mathrm{BCE}_i + (1-\mathrm{Dice}_i), \qquad w_i \in \{1,\ 3\}$$
+$$L = \frac{1}{n}\sum_{i=1}^{n} w_i \cdot L_i, \qquad L_i = 0.5\cdot\mathrm{BCE}_i + (1-\mathrm{Dice}_i), \qquad w_i \in \{1,\ 3\}$$
 
-U-KAN 官方的 loss（`BCEDiceLoss`）本來就逐張計算 Dice，所有影像同為 256×256，所以權重全為 1 時與官方 loss 完全相同
-（實測差異 1.2×10⁻⁷，為浮點誤差；修改後的程式不加權時，前 3 個 epoch 的 loss 與原版逐位相同）。
-因此**對照組就是不加權的 baseline**，不需要 nnU-Net 版的 1.0001 倍率。batch 只有 8 張，採 ÷Σw（加權平均）；
-BTCV 的經驗顯示小 batch 用 ÷n 會讓 loss 尺度大幅跳動。
+n 為 batch 張數（8）。U-KAN 官方的 loss（`BCEDiceLoss`）本來就是逐張計算 Dice 再對 batch 取平均，所有影像同為 256×256，
+所以權重全為 1 時與官方 loss 完全相同（實測差異 1.2×10⁻⁷，為浮點誤差）。
+因此**對照組就是不加權的 baseline**，不需要 nnU-Net 版的 1.0001 倍率。專家模型命名為 `busi_UKAN_psi*w3n`（×3、÷n）。
 
 ---
 
@@ -47,7 +47,7 @@ BTCV 的經驗顯示小 batch 用 ÷n 會讓 loss 尺度大幅跳動。
 | loss | CE + 整批 Dice | 0.5·BCE + **逐張** Dice（官方實作） |
 | 對照組 | 倍率 1.0001（讓 loss 也逐張計算） | 不給清單（權重全為 1），與官方完全相同 |
 | proxy 篩選 | 5 折 OOF／測試集（ACDC Ψ1/6/7 †） | baseline 對**訓練集**的預測（同 ACDC 的 all 模式），完全不看測試集 |
-| 選用的權重 | 最後一個 epoch | **兩種都報告**：last（最後一個 epoch，主要依據）、best（原作者做法：在 20% 集合上挑最好的 epoch） |
+| 選用的權重 | 最後一個 epoch | **last**（最後一個 epoch）為主要依據；best（原作者做法：在 20% 集合上挑最好的 epoch）的逐張結果也保留在 `results/percase/` |
 | Ψ | 依資料集 | BUSI 只有腫瘤一個結構：可計算 Ψ1、Ψ6、Ψ7、Ψ8；Ψ3/4/5/9/10 需要兩個以上的結構，Ψ2 未定義 |
 
 ---
@@ -87,11 +87,11 @@ BTCV 的經驗顯示小 batch 用 ÷n 會讓 loss 尺度大幅跳動。
 
 | 專家 | 清單 | 對照組 → 專家 | Δ | 升 / 降 | 加權組比未加權組多升 | p |
 |---|---|---|---|---|---|---|
-| Ψ1 | 155 | 0.9625 → 0.9681 | +0.0057 | 132 / 23 | **+0.0130** | < 0.001 |
-| Ψ6 | 33 | 0.9494 → 0.9723 | **+0.0229** | 31 / 2 | **+0.0265** | < 0.001 |
-| Ψ8 | 155 | 0.9655 → 0.9670 | +0.0015 | 91 / 64 | **+0.0113** | < 0.001 |
+| Ψ1 | 155 | 0.9625 → 0.9702 | +0.0077 | 140 / 15 | **+0.0136** | < 0.001 |
+| Ψ6 | 33 | 0.9494 → 0.9743 | **+0.0249** | 31 / 2 | **+0.0278** | < 0.001 |
+| Ψ8 | 155 | 0.9655 → 0.9703 | +0.0048 | 122 / 33 | **+0.0165** | < 0.001 |
 
-與 ACDC、BTCV 相同：**×3 加權讓清單上的影像本身擬合得更好**。
+與 ACDC、BTCV 相同：**×3 加權讓清單上的影像本身擬合得更好**（`weighted_cases_BUSI.csv` 為被加權影像逐張，`weighted_cases_BUSI_all.csv` 為全部 517 張）。
 
 ### 5. 測試集（last）：Ψ 挑到的影像 vs 真正低分的影像
 
@@ -118,40 +118,41 @@ BTCV 的經驗顯示小 batch 用 ÷n 會讓 loss 尺度大幅跳動。
 
 | 專家 | all（130） | prominent | low_dice（15） | false_pick |
 |---|---|---|---|---|
-| Ψ1 | −0.0002（61 / 63） | −0.0088（17 / 27） | +0.0001（3 / 6） | **−0.0119（14 / 22）** |
-| Ψ6 | +0.0050（64 / 59） | +0.0163（11 / 6） | +0.0168（4 / 4） | +0.0115（9 / 4） |
-| Ψ8 | +0.0048（59 / 66） | +0.0324（18 / 15） | +0.0420（6 / 4） | +0.0245（12 / 12） |
+| Ψ1 | +0.0072（61 / 64） | +0.0232（23 / 21） | +0.0275（7 / 3） | +0.0228（18 / 18） |
+| Ψ6 | +0.0147（67 / 57） | **+0.0435（14 / 4）** | +0.0057（5 / 4） | **+0.0676（11 / 2）** |
+| Ψ8 | **+0.0222（69 / 56）** | +0.0343（19 / 14） | +0.0233（7 / 3） | +0.0413（13 / 11） |
 
-所有 Wilcoxon p > 0.1。重訓雜訊：兩次 baseline 在測試集的逐張 Δ 標準差 0.099（`test_BUSI_noise.csv`）。
+Wilcoxon p：Ψ8 all = 0.027；Ψ6 prominent = 0.094、false_pick = 0.068；其餘 > 0.09。
 
-- Ψ 能找到低分影像（Ψ8 覆蓋 14/15、Ψ1 12/15），但被挑中的影像裡 6–7 成原本就不差（false_pick）。
-- Ψ1 的下降集中在 false_pick（36 張，−0.012）：形狀不規則但原本分割得好的腫瘤，加權後反而變差。
-- 9 張 Dice < 0.1 的影像，對照組與三個專家**全部仍 < 0.03**（`test_BUSI_percase.csv`）：這類錯誤是位置找錯，不是邊界形狀，加權形狀類 Ψ 無法修正。
-- Ψ8 在低分組 +0.042，方向正確，但仍在重訓雜訊範圍內。
+- 三個專家的整個測試集都高於對照組（+0.007 至 +0.022），Ψ8 達顯著。
+- 三個專家的特徵明顯組都比其他影像進步更多（prominent +0.023 至 +0.044，比 all 多 +0.012 至 +0.029），方向符合預期，但都未達顯著。
+- **要注意對照組的 last 本身可能偏低**：對照組 last 為 0.7818，同一模型的 best 為 0.8083；目前只有 best 的重訓雜訊基準（逐張 Δ 標準差 0.099，`test_BUSI_noise.csv`），
+  需要第二次不加權訓練的 last，才能確定整體的提升不是對照組這次剛好偏低。
 
-<details>
-<summary>補充：best（原作者做法）的結果</summary>
+### 6. 搬移實驗：測試集最差的影像被看過之後能否學起來
 
-| 專家 | 訓練集被加權影像 Δ | 加權組多升 | all Δ（p） | prominent Δ（n_up / n_down） | low_dice Δ（n_up / n_down） |
-|---|---|---|---|---|---|
-| Ψ1 | −0.0312 | +0.0082 | −0.0160（0.039） | −0.0415（17 / 29） | −0.0297（3 / 8） |
-| Ψ6 | −0.0080 | +0.0230 | −0.0033（0.191） | +0.0276（9 / 10） | −0.0393（3 / 8） |
-| Ψ8 | −0.0020 | +0.0160 | −0.0138（0.132） | −0.0259（15 / 19） | −0.0497（2 / 9） |
+兩個 baseline（`seed2981` best、`base2` last）在測試集都 Dice < 0.2 的 9 張（`weight_lists/moved_busi_dice02.csv`）移到訓練集，
+其餘設定與對照組相同（權重 1），訓練 526 張、測試 121 張（`moved_BUSI_*.csv`）。
 
-best 各自挑到不同的 epoch，與 last 的正負號經常相反（第 3 節），僅供參照（`python analyze_busi.py --checkpoint best` 由 `results/percase` 重算）。
-</details>
+| 組別 | n | 對照組 | 搬移後 | Δ | 升 / 降 | p |
+|---|---|---|---|---|---|---|
+| **moved（測試集 → 訓練集）** | 9 | 0.0026 | **0.9622** | +0.9595 | 9 / 0 | 0.004 |
+| remaining_test | 121 | 0.8398 | 0.8373 | −0.0025 | 55 / 66 | 0.69 |
+| original_train | 517 | 0.9659 | 0.9675 | +0.0016 | 264 / 253 | 0.17 |
+
+- 9 張原本 Dice ≈ 0 的影像，被看過之後全部達 0.92 至 0.99，與一般訓練影像（0.97）相當：**這些影像與標註本身沒有問題，是可以學的**；
+  在測試集失敗是因為訓練集中沒有相似的例子（泛化問題），而不是影像模糊或標註錯誤。
+- 多學這 9 張，對其餘 121 張測試影像沒有幫助（−0.0025，不顯著）。
 
 ### 結論
 
 > Ψ 能在沒有標註的情況下挑出困難的影像（訓練集篩選 AUC 0.78 / 0.71；測試集真正低分影像的覆蓋率 Ψ8 93%、Ψ1 80%），
-> ×3 加權也確實讓訓練集上被加權的影像變好（三個專家皆顯著），
-> 但效果沒有轉移到測試集：專家在低分組的變化都在重訓雜訊範圍內，Ψ1 甚至讓誤挑的好影像變差。
-> 主要原因有三：
-> 1. 加權清單來自 baseline 對**訓練集**的預測，訓練集 Dice 已達 0.92，清單反映的是擬合後殘留的形狀，而不是模型真正不會的影像；
-> 2. BUSI 最困難的影像是位置找錯（Dice ≈ 0），形狀類的加權無法修正；
-> 3. 重訓雜訊大（逐張標準差約 0.10），15 張低分組的平均差異需大於約 ±0.04 才可能分辨。
+> ×3 加權讓訓練集上被加權的影像變好（三個專家皆顯著），測試集上三個專家也都高於對照組（Ψ8 +0.022，p = 0.027），
+> 且特徵明顯的影像進步較多，但這部分未達顯著，且需要第二次不加權訓練確認對照組不是剛好偏低。
+> 測試集最差的 9 張（位置找錯）被看過之後可以完全學起來，代表它們的失敗來自訓練集缺少相似的例子；
+> 加權只能改變已有訓練影像的比重，無法補上沒有的例子。
 >
-> 另外，原作者「在 20% 集合上挑最好 epoch 並報告同一集合」的做法會引入很大的雜訊，比較加權效果時應以固定的 epoch 為準。
+> 另外，原作者「在 20% 集合上挑最好 epoch 並報告同一集合」的做法會引入很大的雜訊（第 3 節），比較加權效果時應以固定的 epoch 為準。
 
 ---
 
@@ -170,18 +171,15 @@ python prep_busi.py <Dataset_BUSI_with_GT> inputs/busi
 # 3. baseline（原作者指令）
 python train.py --arch UKAN --dataset busi --input_w 256 --input_h 256 --name busi_UKAN_seed2981 --data_dir ./inputs
 
-# 4. 加入 Ψ 加權（不給 --wcases 時與原版完全相同）
+# 4. 加入 Ψ 加權與 --move_to_train（不給 --wcases、--move_to_train 時與原版完全相同）
 python patch_ukan_weighted.py
 
 # 5. baseline 預測 + Ψ、篩選並產生清單
 python predict_busi.py --name busi_UKAN_seed2981 --which best --psi
 python screen_busi.py outputs/busi_UKAN_seed2981/percase_best.csv <清單資料夾>
 
-# 6. 對照組（第二次 baseline）與專家，依序訓練並預測
-LISTS=<清單資料夾> bash train_busi_queue.sh
-
-# 7. 分析
-python analyze_busi.py --lists <清單資料夾>
+# 6. 其餘全部一次完成：對照組 → 三個 w3n 專家 → 分析 → 搬移清單 → 搬移後訓練 → 分析（可中斷後重跑）
+LISTS=<清單資料夾> nohup bash run_busi_all.sh > run_busi_all.log 2>&1 &
 ```
 
 `ukan_extension/` 的檔案複製到 `U-KAN/Seg_UKAN` 後使用（`setup_ukan.sh` 除外）。`predict_busi.py` 的 Ψ 計算沿用
@@ -203,17 +201,19 @@ psi-weighted-nnunet 的 `psi/run_all_psi.py`（以 `--psi_lib` 指定路徑）�
 
 | 位置 | 內容 |
 |---|---|
-| `ukan_extension/patch_ukan_weighted.py` | 在官方 `train.py`、`losses.py` 加入 Ψ 加權（`--wcases`、`--wfactor`）與每個 epoch 存 `model_last.pth`；修改處皆標 `[Ψ加權]` |
+| `ukan_extension/patch_ukan_weighted.py` | 在官方 `train.py`、`losses.py` 加入 Ψ 加權（`--wcases`、`--wfactor`，loss ÷ n）、`--move_to_train` 與每個 epoch 存 `model_last.pth`；修改處皆標 `[Ψ加權]` |
 | `ukan_extension/ukan_patch.diff` | 修改後與官方原檔的完整差異 |
 | `ukan_extension/predict_busi.py` | 預測訓練集與測試集、逐張 Dice、Ψ1–Ψ10（Ψ8 含旋轉推論）；切分與官方 `train.py` 相同 |
 | `ukan_extension/screen_busi.py` | proxy 篩選與加權清單（規則同 psi-weighted-nnunet） |
+| `ukan_extension/run_busi_all.sh` | 第 6 步的全部流程 |
 | `ukan_extension/train_busi_queue.sh` | 依序訓練對照組與專家，訓練完立即預測（best、last） |
 | `ukan_extension/analyze_busi.py` | 訓練集加權前後；測試集的挑選張數、coverage / precision、各組前後變化、重訓雜訊 |
+| `ukan_extension/moved_busi.py` | 搬移實驗：產生清單（`make`）與分析（`analyze`） |
 | `ukan_extension/prep_busi.py`、`setup_ukan.sh`、`requirements_ukan.txt` | 資料整理、環境建置、改寫後的套件版本 |
-| `weight_lists/` | 三個加權清單（影像名稱、Ψ 值、baseline Dice） |
+| `weight_lists/` | 三個加權清單（影像名稱、Ψ 值、baseline Dice）；`moved_busi_dice02.csv` 為搬移實驗移到訓練集的 9 張 |
 | `results/psi_selection/proxy_selection_busi.csv` | proxy 篩選結果 |
 | `results/percase/` | 每個模型逐張的 Dice（`<模型>_<best或last>.csv`）；`busi_UKAN_seed2981_best.csv` 含十個 Ψ |
-| `results/analysis/` | 皆為 last。`weighted_cases_BUSI*`（訓練集）；`test_BUSI_selection`（門檻、挑選張數、coverage、precision）、`test_BUSI_summary`（各組 control → expert）、`test_BUSI_percase`（逐張）、`test_BUSI_noise`（重訓雜訊，best）、`test_BUSI_dice_hist.png`（測試集 Dice 分布） |
+| `results/analysis/` | 皆為 last。`weighted_cases_BUSI`（被加權影像）、`_all`（全部 517 張）、`_summary`、`_compare`（訓練集）；`test_BUSI_selection`（門檻、挑選張數、coverage、precision）、`test_BUSI_summary`（各組 control → expert）、`test_BUSI_percase`（逐張）、`test_BUSI_noise`（重訓雜訊，best）、`test_BUSI_dice_hist.png`（測試集 Dice 分布）；`moved_BUSI_*`（搬移實驗） |
 | `results/training_logs/` | 每個模型每個 epoch 的 loss 與 IoU |
 
 資料、影像與模型權重不包含在倉庫中。U-KAN 的程式不包含在本倉庫，見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

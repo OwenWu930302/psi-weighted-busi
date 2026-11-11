@@ -5,7 +5,11 @@ BUSI (U-KAN): control (weight 1) -> experts (Psi x3)
   --control  : control model (weight 1; identical to the original U-KAN)
   --noise    : another baseline with the same settings (noise reference)
 
-Training set (weighted_cases_BUSI*.csv): did the weighted training images themselves improve?
+Training set: did the weighted training images themselves improve?
+  weighted_cases_BUSI.csv          weighted images only (one row per expert x weighted image)
+  weighted_cases_BUSI_all.csv      all 517 training images, weighted = yes / no
+  weighted_cases_BUSI_summary.csv  weighted images: control -> expert
+  weighted_cases_BUSI_compare.csv  weighted vs unweighted images
 
 Test set (130 images):
   prominent : Psi passes the threshold of the training list (label-free, from the --psi_from prediction)
@@ -39,7 +43,7 @@ ap.add_argument('--psi_from', default='busi_UKAN_seed2981')
 ap.add_argument('--control', default='busi_UKAN_base2')
 ap.add_argument('--noise', default='busi_UKAN_seed2981')
 ap.add_argument('--lists', default='/mnt/data2t/BUSI/psi_lists')
-ap.add_argument('--expert_fmt', default='busi_UKAN_{short}w3')
+ap.add_argument('--expert_fmt', default='busi_UKAN_{short}w3n', help='專家名稱（w3n：loss ÷ n）')
 ap.add_argument('--low_t', default=0.5, type=float, help='low_dice = baseline Dice below this value')
 ap.add_argument('--checkpoint', default='last', choices=['last', 'best'])
 args = ap.parse_args()
@@ -143,9 +147,11 @@ for which in (args.checkpoint,):
         t = pd.DataFrame({'control': ctl.loc[cs, 'dice'], 'expert': ex.loc[cs, 'dice']})
         t['delta'] = t.expert - t.control
         t['weighted'] = [c in e['wset'] for c in t.index]
+        t['psi_value'] = PSI.loc[t.index, e['psi']]
+        t = t.sort_values(['weighted', 'psi_value'], ascending=False)
         for c, r in t.iterrows():
             TR.append(dict(checkpoint=which, expert=e['model'], case=c, weighted='yes' if r.weighted else 'no',
-                           before_control=r.control, after_expert=r.expert, delta=r.delta))
+                           psi_value=r.psi_value, before_control=r.control, after_expert=r.expert, delta=r.delta))
         W, U = t[t.weighted], t[~t.weighted]
         TRS.append(dict(checkpoint=which, expert=e['model'], **change(W)))
         TRC.append(dict(checkpoint=which, expert=e['model'], n_weighted=len(W), delta_weighted=W.delta.mean(),
@@ -165,7 +171,8 @@ for which in (args.checkpoint,):
         for name, m in [('all', p | ~p), ('prominent', p), ('low_dice', low), ('false_pick', p & ~low)]:
             SUM.append(dict(checkpoint=which, expert=e['model'], group=name, **change(g[m])))
 
-for name, rows in [('weighted_cases_BUSI', TR), ('weighted_cases_BUSI_summary', TRS),
+TRW = [{k: v for k, v in r.items() if k != 'weighted'} for r in TR if r['weighted'] == 'yes']
+for name, rows in [('weighted_cases_BUSI', TRW), ('weighted_cases_BUSI_all', TR), ('weighted_cases_BUSI_summary', TRS),
                    ('weighted_cases_BUSI_compare', TRC), ('test_BUSI_selection', SELROWS),
                    ('test_BUSI_summary', SUM), ('test_BUSI_percase', TE), ('test_BUSI_noise', NOISE)]:
     if rows:
