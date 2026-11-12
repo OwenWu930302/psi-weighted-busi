@@ -3,7 +3,9 @@ BUSI (U-KAN): control (weight 1) -> experts (Psi x3)
 
   --psi_from : baseline used to compute Psi, build the weight lists and define the low-Dice group
   --control  : control model (weight 1; identical to the original U-KAN)
-  --noise    : another baseline with the same settings (noise reference)
+  --noise    : other baselines with the same settings (noise reference, comma-separated;
+               uses --checkpoint when that model has it, otherwise best)
+  --out      : output folder name under outputs/ (default analysis_busi)
 
 Training set: did the weighted training images themselves improve?
   weighted_cases_BUSI.csv          weighted images only (one row per expert x weighted image)
@@ -23,7 +25,7 @@ Outputs (outputs/analysis_busi/):
   test_BUSI_selection.csv  per expert: threshold, how many images Psi selects, how many of them are low-Dice
   test_BUSI_summary.csv    per expert x group (all / prominent / low_dice / false_pick): control -> expert
   test_BUSI_percase.csv    per image
-  test_BUSI_noise.csv      two baselines with identical settings (best; the first baseline has no last)
+  test_BUSI_noise.csv      baselines with identical settings vs the control (seed2981 only has best)
   test_BUSI_dice_hist.png  test-set Dice distribution of the baseline, with the low_dice cut-off
 Only one checkpoint is analysed (--checkpoint, default last = fixed epoch).
 
@@ -41,14 +43,15 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--output_dir', default='outputs')
 ap.add_argument('--psi_from', default='busi_UKAN_seed2981')
 ap.add_argument('--control', default='busi_UKAN_base2')
-ap.add_argument('--noise', default='busi_UKAN_seed2981')
+ap.add_argument('--noise', default='busi_UKAN_seed2981,busi_UKAN_base3')
+ap.add_argument('--out', default='analysis_busi')
 ap.add_argument('--lists', default='/mnt/data2t/BUSI/psi_lists')
 ap.add_argument('--expert_fmt', default='busi_UKAN_{short}w3n', help='專家名稱（w3n：loss ÷ n）')
 ap.add_argument('--low_t', default=0.5, type=float, help='low_dice = baseline Dice below this value')
 ap.add_argument('--checkpoint', default='last', choices=['last', 'best'])
 args = ap.parse_args()
 O = args.output_dir
-OUT = f'{O}/analysis_busi'
+OUT = f'{O}/{args.out}'
 os.makedirs(OUT, exist_ok=True)
 
 
@@ -122,13 +125,16 @@ for e in EXPERTS:
                         n_missed=n_low - hit, coverage=hit / max(n_low, 1), precision=hit / max(n_p, 1)))
 
 TR, TRS, TRC, TE, SUM, NOISE = [], [], [], [], [], []
-# noise reference: the first baseline only has best
-ctl, nz = load(args.control, 'best'), load(args.noise, 'best')
-if ctl is not None and nz is not None and args.noise != args.control:
+# noise reference: other baselines vs the control (--checkpoint if available; the first baseline only has best)
+for nzname in [x for x in args.noise.split(',') if x and x != args.control]:
+    ck = args.checkpoint if load(nzname, args.checkpoint) is not None else 'best'
+    ctl, nz = load(args.control, ck), load(nzname, ck)
+    if ctl is None or nz is None:
+        continue
     for sp, nm in (('train', 'train'), ('val', 'test')):
         cs = ctl[ctl.split == sp].index.intersection(nz.index)
         d = nz.loc[cs, 'dice'] - ctl.loc[cs, 'dice']
-        NOISE.append(dict(checkpoint='best', split=nm, model_a=args.control, model_b=args.noise, n=len(cs),
+        NOISE.append(dict(checkpoint=ck, split=nm, model_a=args.control, model_b=nzname, n=len(cs),
                           dice_a=ctl.loc[cs, 'dice'].mean(), dice_b=nz.loc[cs, 'dice'].mean(), delta=d.mean(),
                           sd_delta=d.std(), n_up=int((d > 0).sum()), n_down=int((d < 0).sum()),
                           wilcoxon_p=wil(d)))

@@ -5,13 +5,15 @@
 # 可中斷重跑：已有 model_last.pth 且 log 跑滿 400 epoch 的會略過
 # 用法（在 Seg_UKAN 資料夾、ukan 環境）：nohup bash train_busi_queue.sh > train_busi_queue.log 2>&1 &
 # 專家 loss = Σ wᵢ·Lᵢ / n（busi_UKAN_psi*w3n，與原版的平均相同）；舊版 ÷Σw（w3）已不使用，只在重現時用 WNORM=sum
+# 權重倍率：WFACTOR=10 → busi_UKAN_psi*w10n（預設 3 → w3n）
 #   對照組 base2 已訓練完成會自動略過
 LISTS=${LISTS:-/mnt/data2t/BUSI/psi_lists}
 [ -f train.py ] && grep -q "wcases" train.py || { echo "請在 Seg_UKAN 資料夾執行，且先執行 patch_ukan_weighted.py"; exit 1; }
 [ -f $LISTS/proxy_selection_busi.csv ] || { echo "缺少 $LISTS/proxy_selection_busi.csv（先執行 screen_busi.py）"; exit 1; }
 
 WNORM=${WNORM:-n}                                           # n：÷batch 張數（w3n）；sum：÷Σw（第一版，已不使用）
-[ "$WNORM" = n ] && SUF=w3n || SUF=w3
+WFACTOR=${WFACTOR:-3.0}                                     # 清單影像的權重（名稱去掉 .0：3.0 → w3n、10 → w10n）
+[ "$WNORM" = n ] && SUF=w${WFACTOR%.0}n || SUF=w${WFACTOR%.0}
 EPOCHS=${EPOCHS:-400}                                       # 原作者設定 400；只在測試時改小
 done_already() { [ -f outputs/$1/model_last.pth ] && [ "$(tail -n +2 outputs/$1/log.csv 2>/dev/null | wc -l)" -ge $EPOCHS ]; }
 
@@ -30,6 +32,6 @@ run busi_UKAN_base2
 for f in $LISTS/wcases_busi_*.csv; do
   [ -f "$f" ] || { echo "沒有顯著的 Ψ，不訓練專家"; break; }
   psi=$(basename $f .csv | sed 's/wcases_busi_//')          # 例：psi1_convex
-  run busi_UKAN_${psi%%_*}$SUF --wcases $f --wfactor 3.0 --wnorm $WNORM
+  run busi_UKAN_${psi%%_*}$SUF --wcases $f --wfactor $WFACTOR --wnorm $WNORM
 done
 echo "===== 全部完成　$(date '+%m/%d %H:%M')"

@@ -1,3 +1,5 @@
 ﻿checkpoint,split,model_a,model_b,n,dice_a,dice_b,delta,sd_delta,n_up,n_down,wilcoxon_p
 best,train,busi_UKAN_base2,busi_UKAN_seed2981,517,0.9461,0.9198,-0.0263,0.0621,81,436,0.0000
 best,test,busi_UKAN_base2,busi_UKAN_seed2981,130,0.8083,0.7990,-0.0093,0.0987,64,63,0.7020
+last,train,busi_UKAN_base2,busi_UKAN_base3,517,0.9659,0.9666,0.0007,0.0265,240,276,0.0180
+last,test,busi_UKAN_base2,busi_UKAN_base3,130,0.7818,0.7912,0.0094,0.1028,60,64,0.7028

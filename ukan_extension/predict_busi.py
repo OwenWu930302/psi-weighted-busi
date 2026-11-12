@@ -13,7 +13,7 @@
 輸出：outputs/<name>/percase_<best|last>.csv、outputs/<name>/pred_<best|last>/<split>/<影像>.png
 用法（在 Seg_UKAN 資料夾）：
   python predict_busi.py --name busi_UKAN_seed2981 --which best --psi        # baseline：訓練集 + 測試集，含 Ψ
-  python predict_busi.py --name busi_UKAN_psi1w3 --which last                  # 專家：只算 Dice
+  python predict_busi.py --name busi_UKAN_psi1w3n --which last                 # 專家：只算 Dice
 """
 import argparse
 import importlib.util
