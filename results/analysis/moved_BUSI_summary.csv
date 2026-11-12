@@ -1,4 +1,4 @@
 ﻿model,group,n,before_control,after_moved,delta,n_up,n_down,wilcoxon_p
 busi_UKAN_moved,moved (test -> train),9,0.0026,0.9622,0.9595,9,0,0.0039
-busi_UKAN_moved,remaining_test,121,0.8398,0.8373,-0.0025,55,66,0.6932
-busi_UKAN_moved,original_train,517,0.9659,0.9675,0.0016,264,253,0.1731
+busi_UKAN_moved,test,121,0.8398,0.8373,-0.0025,55,66,0.6932
+busi_UKAN_moved,train,517,0.9659,0.9675,0.0016,264,253,0.1731
