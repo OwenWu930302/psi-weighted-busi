@@ -8,7 +8,7 @@ BUSI 搬移實驗：把測試集中 Dice < 0.2 的影像移到訓練集，看它
   python moved_busi.py analyze
 輸出（outputs/analysis_busi/）：
   moved_BUSI_percase.csv  搬移的每張影像：before_control（在測試集）→ after_moved（在訓練集）
-  moved_BUSI_summary.csv  moved / remaining_test / original_train 三組的前後變化
+  moved_BUSI_summary.csv  moved / test / train 三組的前後變化（三組互不重疊：9 + 121 + 517 = 647）
 """
 import argparse
 import os
@@ -65,12 +65,12 @@ for name in args.models.split(','):
     bad and sys.exit(f'{name}: {bad} 不在訓練集，模型不是用 --move_to_train 訓練的？')
     g = pd.DataFrame({'control': ctl.dice, 'moved': ex.loc[ctl.index, 'dice'], 'split': ctl.split})
     g['delta'] = g.moved - g.control
-    for c in sorted(mv, key=lambda c: g.loc[c, 'control']):
+    for c in sorted(mv, key=lambda c: (g.loc[c, 'control'], c)):
         P.append(dict(model=name, case=c, before_control=g.loc[c, 'control'], after_moved=g.loc[c, 'moved'],
                       delta=g.loc[c, 'delta']))
     for grp, m in [('moved (test -> train)', g.index.isin(mv)),
-                   ('remaining_test', (g.split == 'val') & ~g.index.isin(mv)),
-                   ('original_train', g.split == 'train')]:
+                   ('test', (g.split == 'val') & ~g.index.isin(mv)),
+                   ('train', g.split == 'train')]:
         x = g[m]
         S.append(dict(model=name, group=grp, n=len(x), before_control=x.control.mean(), after_moved=x.moved.mean(),
                       delta=x.delta.mean(), n_up=int((x.delta > 0).sum()), n_down=int((x.delta < 0).sum()),
